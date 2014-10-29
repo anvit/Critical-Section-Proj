@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Random;
 import com.sun.nio.sctp.*;
 import java.nio.*;
+import java.sql.Timestamp;
+import java.util.Date;
 
 public class ProjCS extends Thread
 {
@@ -15,6 +17,8 @@ public class ProjCS extends Thread
 	static ArrayList<String> hosts = new ArrayList<String>();
 	static ArrayList<String> ports = new ArrayList<String>();
 	static ArrayList<String> paths = new ArrayList<String>();
+	static ArrayList<String> request_queue = new ArrayList<String>();
+	static String[] own_quorums;
 	
 	//               ,,    ,,                           
 	//   .g8"""bgd `7MM    db                     mm    
@@ -115,38 +119,34 @@ public class ProjCS extends Thread
 				SctpChannel sctpChannel = sctpServerChannel.accept();
 				MessageInfo messageInfo = sctpChannel.receive(byteBuffer,null,null);
 				String message = byteToString(byteBuffer);
-				System.out.println("Label value received:" + readlabel(message));
-				int addlabel = readlabel(message) + self_label;
-				final String new_mesg = strip_path(message) + "-" + addlabel ;
-				if(!newpath(message).split(" ")[0].equals("*"))		//Checks if path destination is '*'. '*' signifies that all nodes have been visited and we're back in the originating process
-				{
-					int send_proc_no = Integer.parseInt(newpath(message).split(" ")[0]) - 1 ; 
-					final String send_port = ports.get(send_proc_no) ;
-					final String send_host = hosts.get(send_proc_no) ;
 
-					System.out.println("Sending - "+send_host+":"+send_port + "> "+ new_mesg);
-
-					Thread thread1 = new Thread()
-					{
-						public void run()
-						{
-							obj.client(Integer.parseInt(send_port),send_host,new_mesg);
-						}
-					};
-					thread1.start();
-				}
-				else
-				{
-					System.out.println(".-----------------------.");
-					System.out.println("|Final Value : " + addlabel + "	|");
-					System.out.println("'-----------------------'");
-				}
+				// Call Application function here
 			}
 		}
 		catch(IOException ex)
 		{
 			ex.printStackTrace();
 		}
+	}
+
+	// Placeholder for application 
+	public void server_application()
+	{
+		// if request
+			// if queue empty: push to queue: send grant
+
+			// if queue not empty: if recvd timestamp is not min in the queue: push to end, send grant
+
+			// if queue not empty: if recvd timestamp is min in the queue: push to head of queue, send inquire to the granted process
+		// if grant
+
+		// if inquire
+
+		// if release
+
+		// if yeild
+
+		// if failed
 	}
 
 	//Converts byte buffer to string
@@ -247,19 +247,20 @@ public class ProjCS extends Thread
 
 	public static void main(String args[])
 	{
-		Random randomGenerator = new Random();
-
-		//Label for this process
-		self_label = randomGenerator.nextInt(100);
 		obj = new ProjCS();
 		obj.readconfig(args[0]);
 		final int proc_no = Integer.parseInt(args[1]) - 1;
 		final String first_send_port = ports.get(Integer.parseInt(paths.get(proc_no).split(" ")[0]) - 1) ;
 		final String first_send_host = hosts.get(Integer.parseInt(paths.get(proc_no).split(" ")[0]) - 1) ;
-		System.out.println("Self label:" + self_label);
-		final String mesg = strip_path(paths.get(proc_no)) + "-0";
+		
+		java.util.Date date= new java.util.Date();
+	 	String tstamp = new Timestamp(date.getTime());
+		final String mesg = "Request " + tstamp;
+		
+		// Storing list of own quorum members
+		own_quorums = paths.get(proc_no).split(" ");
 
-		//Starting the main thread for this process
+		// Starting the main thread for this process
 		Thread thread = new Thread()
 		{
 			public void run()
@@ -269,15 +270,19 @@ public class ProjCS extends Thread
 		};
 		thread.start();
 
-		//Starting a client thread and sending the first message listed in path
-		Thread thread1 = new Thread()
+		// Starting a client thread and sending the first message listed in path
+		for(int i=0 ; i<own_quorums.length; ++i)
 		{
-			public void run()
+			System.out.println(own_quorums[i]);
+			Thread thread1 = new Thread()
 			{
-				obj.client(Integer.parseInt(first_send_port),first_send_host,mesg);
-			}
-		};
-		thread1.start();
-
+				public void run()
+				{
+					obj.client(Integer.parseInt(ports.get(Integer.parseInt(own_quorums[i]) - 1 )),hosts.get(Integer.parseInt(own_quorums[i]) - 1 )  ,mesg );
+				}
+			};
+			thread1.start();
+		}
+	
 	}
 }
