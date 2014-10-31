@@ -5,8 +5,6 @@ import java.util.List;
 import java.util.Random;
 import com.sun.nio.sctp.*;
 import java.nio.*;
-import java.sql.Timestamp;
-import java.util.Date;
 
 public class ProjCS extends Thread
 {
@@ -119,7 +117,12 @@ public class ProjCS extends Thread
 				SctpChannel sctpChannel = sctpServerChannel.accept();
 				MessageInfo messageInfo = sctpChannel.receive(byteBuffer,null,null);
 				String message = byteToString(byteBuffer);
-
+				System.out.println(message);
+				String[] message_sections = message.split("-");
+				int sender = Integer.parseInt(message_sections[0]);
+				String typ = message_sections[1];
+				long ts = Long.parseLong(message_sections[2].trim());
+				server_application(sender,typ,ts);
 				// Call Application function here
 			}
 		}
@@ -130,8 +133,9 @@ public class ProjCS extends Thread
 	}
 
 	// Placeholder for application 
-	public void server_application()
+	public void server_application(int sender, String typ, long ts)
 	{
+		System.out.println("Sender:" + sender + "\nMessage type:" + typ + "\nTimestamp" + ts);
 		// if request
 			// if queue empty: push to queue: send grant
 
@@ -253,9 +257,8 @@ public class ProjCS extends Thread
 		final String first_send_port = ports.get(Integer.parseInt(paths.get(proc_no).split(" ")[0]) - 1) ;
 		final String first_send_host = hosts.get(Integer.parseInt(paths.get(proc_no).split(" ")[0]) - 1) ;
 		
-		java.util.Date date= new java.util.Date();
-	 	String tstamp = new Timestamp(date.getTime());
-		final String mesg = "Request " + tstamp;
+	 	final String tstamp =  String.valueOf(System.currentTimeMillis() / 1000L) ;
+		final String mesg = proc_no + "-Request-" + tstamp;
 		
 		// Storing list of own quorum members
 		own_quorums = paths.get(proc_no).split(" ");
@@ -271,14 +274,15 @@ public class ProjCS extends Thread
 		thread.start();
 
 		// Starting a client thread and sending the first message listed in path
-		for(int i=0 ; i<own_quorums.length; ++i)
+		for(int j=0 ; j<own_quorums.length; ++j)
 		{
+			final int i = j;
 			System.out.println(own_quorums[i]);
 			Thread thread1 = new Thread()
 			{
 				public void run()
 				{
-					obj.client(Integer.parseInt(ports.get(Integer.parseInt(own_quorums[i]) - 1 )),hosts.get(Integer.parseInt(own_quorums[i]) - 1 )  ,mesg );
+					obj.client(Integer.parseInt(ports.get(Integer.parseInt(own_quorums[i]) - 1 )),hosts.get(Integer.parseInt(own_quorums[i]) - 1 )  , mesg);
 				}
 			};
 			thread1.start();
