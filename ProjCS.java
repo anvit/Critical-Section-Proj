@@ -40,8 +40,8 @@ public class ProjCS extends Thread
 	static ArrayList<String> paths = new ArrayList<String>();
 	static ArrayList<ListType> request_queue = new ArrayList<ListType>();
 	static ArrayList<ListType> uncertain_list = new ArrayList<ListType>();
-	static ArrayList<String> grant_set = new ArrayList<String>();
-	static ArrayList<String> failed_set= new ArrayList<String>();
+	static ArrayList<Integer> grant_set = new ArrayList<Integer>();
+	static ArrayList<Integer> failed_set= new ArrayList<Integer>();
 	static int current_grant;
 	static String[] own_quorums;
 	static int proc_number;
@@ -189,13 +189,13 @@ public class ProjCS extends Thread
 						temp_list.setId(sender);
 						temp_list.setTimestamp(ts);
 						request_queue.add(temp_list);
-						final String mesg = proc_number + "-2-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
-						current_grant = sender ; 
+						final String mesg_a = proc_number + "-2-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+						current_grant = sender ;
 						Thread thread1 = new Thread()
 						{
 							public void run()
 							{
-								obj.client(Integer.parseInt(ports.get(sender)),hosts.get(sender), mesg);
+								obj.client(Integer.parseInt(ports.get(sender)),hosts.get(sender), mesg_a);
 							}
 						};
 						thread1.start();
@@ -206,17 +206,28 @@ public class ProjCS extends Thread
 						{
 							temp_list.setId(sender);
 							temp_list.setTimestamp(ts);
-							final String mesg = proc_number + "-3-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+							final String mesg_a = proc_number + "-3-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
 							Thread thread1 = new Thread()
 							{
 								public void run()
 								{
-									obj.client(Integer.parseInt(ports.get(request_queue.get(0).getId())),hosts.get(request_queue.get(0).getId()), mesg);
+									obj.client(Integer.parseInt(ports.get(request_queue.get(0).getId())),hosts.get(request_queue.get(0).getId()), mesg_a);
 								}
 							};
 							thread1.start();
 							request_queue.add(0,temp_list);
-							uncertain_list.add(0,temp_list);
+							for(int j=0; j<uncertain_list.size();++j)
+							{
+								if(ts<uncertain_list.get(j).getTimestamp())
+								{
+									uncertain_list.add(j,temp_list);
+									break;
+								}
+								else if(j==(uncertain_list.size()-1))
+								{
+									uncertain_list.add(temp_list);
+								}
+							}
 						}
 						else
 						{
@@ -227,12 +238,28 @@ public class ProjCS extends Thread
 									temp_list.setId(sender);
 									temp_list.setTimestamp(ts);
 									request_queue.add(i,temp_list);
-									final String mesg = proc_number + "-6-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+									final String mesg_a = proc_number + "-6-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
 									Thread thread1 = new Thread()
 									{
 										public void run()
 										{
-											obj.client(Integer.parseInt(ports.get(sender)),hosts.get(sender), mesg);
+											obj.client(Integer.parseInt(ports.get(sender)),hosts.get(sender), mesg_a);
+										}
+									};
+									thread1.start();
+									break;
+								}
+								else if(i==(request_queue.size()-1))
+								{
+									temp_list.setId(sender);
+									temp_list.setTimestamp(ts);
+									request_queue.add(temp_list);
+									final String mesg_a = proc_number + "-6-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+									Thread thread1 = new Thread()
+									{
+										public void run()
+										{
+											obj.client(Integer.parseInt(ports.get(sender)),hosts.get(sender), mesg_a);
 										}
 									};
 									thread1.start();
@@ -245,7 +272,7 @@ public class ProjCS extends Thread
 					break;
 			case 2: 	//Case Grant
 					grant_set.add(sender);
-					if(grant_set.size()==own_quorums.size())
+					if(grant_set.size()==own_quorums.length)
 					{
 						server_service();
 					}
@@ -254,12 +281,12 @@ public class ProjCS extends Thread
 			case 3:		//Case Inquire
 					if(failed_set.size()>0)
 					{
-						final String mesg = proc_number + "-5-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+						final String mesg_c = proc_number + "-5-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
 						Thread thread1 = new Thread()
 						{
 							public void run()
 							{
-								obj.client(Integer.parseInt(ports.get(sender)),hosts.get(sender), mesg);
+								obj.client(Integer.parseInt(ports.get(sender)),hosts.get(sender), mesg_c);
 							}
 						};
 						thread1.start();
@@ -271,13 +298,56 @@ public class ProjCS extends Thread
 					System.out.println("Sender:" + sender + "\nMessage type: Inquire\nTimestamp:" + ts);
 					break;
 			case 4:		//Case Release
-					
+					for(int i=0;i<request_queue.size();++i)
+					{
+						if(request_queue.get(i).getId()==current_grant)
+						{
+							request_queue.remove(i);
+							break;
+						}
+					}
+					final String mesg_d = proc_number + "-2-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+					current_grant = request_queue.get(0).getId();
+					Thread thread1 = new Thread()
+					{
+						public void run()
+						{
+							obj.client(Integer.parseInt(ports.get(request_queue.get(0).getId())),hosts.get(request_queue.get(0).getId()), mesg_d);
+						}
+					};
+					thread1.start();
 					System.out.println("Sender:" + sender + "\nMessage type: Release\nTimestamp:" + ts);
 					break;
 			case 5:		//Case Yeild
+					final String mesg_e = proc_number + "-2-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+					current_grant = uncertain_list.get(0).getId() ;
+					Thread thread = new Thread()
+					{
+						public void run()
+						{
+							obj.client(Integer.parseInt(ports.get(uncertain_list.get(0).getId())),hosts.get(uncertain_list.get(0).getId()), mesg_e);
+						}
+					};
+					thread.start();
+					uncertain_list.remove(0);
+					for(int i=0;i<uncertain_list.size();++i )
+					{
+						final int j = i;
+						final String mesg_e1 = proc_number + "-6-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+						Thread thread2 = new Thread()
+						{
+							public void run()
+							{
+								obj.client(Integer.parseInt(ports.get(uncertain_list.get(j).getId())),hosts.get(uncertain_list.get(j).getId()), mesg_e1);
+							}
+						};
+						thread2.start();
+					}
+					uncertain_list.clear();
 					System.out.println("Sender:" + sender + "\nMessage type: Yeild\nTimestamp:" + ts);
 					break;
 			case 6:		//Case Failed
+					failed_set.add(sender);
 					System.out.println("Sender:" + sender + "\nMessage type: Emergency termination\nTimestamp:" + ts);
 					break;
 			case -1:	//Case Emegency termination
