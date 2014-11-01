@@ -10,14 +10,30 @@ public class ProjCS extends Thread
 {
 	public static final int MESSAGE_SIZE = 100;
 	static int nodes = 0;
-	static int self_label = 0;
 	static ProjCS obj = null;
 	static ArrayList<String> hosts = new ArrayList<String>();
 	static ArrayList<String> ports = new ArrayList<String>();
 	static ArrayList<String> paths = new ArrayList<String>();
 	static ArrayList<String> request_queue = new ArrayList<String>();
 	static String[] own_quorums;
+	static int proc_number;
+
+	/*
+
+	Message types:
+	REQUEST:	1
+	GRANT:		2
+	INQUIRE:	3
+	RELEASE:	4
+	YEILD:		5
+	FAILED:		6
 	
+	EMERGENCY TERMINATION: -1
+
+	*/
+
+
+
 	//               ,,    ,,                           
 	//   .g8"""bgd `7MM    db                     mm    
 	// .dP'     `M   MM                           MM    
@@ -120,7 +136,7 @@ public class ProjCS extends Thread
 				System.out.println(message);
 				String[] message_sections = message.split("-");
 				int sender = Integer.parseInt(message_sections[0]);
-				String typ = message_sections[1];
+				int typ = Integer.parseInt(message_sections[1]);
 				long ts = Long.parseLong(message_sections[2].trim());
 				server_application(sender,typ,ts);
 				// Call Application function here
@@ -133,9 +149,36 @@ public class ProjCS extends Thread
 	}
 
 	// Placeholder for application 
-	public void server_application(int sender, String typ, long ts)
+	public void server_application(int sender, int typ, long ts)
 	{
-		System.out.println("Sender:" + sender + "\nMessage type:" + typ + "\nTimestamp" + ts);
+		switch(typ)
+		{
+			case 1: 	//Case Request
+					if(request_queue.isEmpty())
+					{
+						System.out.println("Sender:" + sender + "\nMessage type:" + typ + "\nTimestamp:" + ts);
+						request_queue.add()
+					}
+					break;
+			case 2: 	//Case Grant
+					System.out.println("Sender:" + sender + "\nMessage type:" + typ + "\nTimestamp:" + ts);
+					break;
+			case 3:		//Case Inquire
+					System.out.println("Sender:" + sender + "\nMessage type:" + typ + "\nTimestamp:" + ts);
+					break;
+			case 4:		//Case Release
+					System.out.println("Sender:" + sender + "\nMessage type:" + typ + "\nTimestamp:" + ts);
+					break;
+			case 5:		//Case Yeild
+					System.out.println("Sender:" + sender + "\nMessage type:" + typ + "\nTimestamp:" + ts);
+					break;
+			case 6:		//Case Failed
+					System.out.println("Sender:" + sender + "\nMessage type:" + typ + "\nTimestamp:" + ts);
+					break;
+			case -1:	//Case Emegency termination
+					System.out.println("Sender:" + sender + "\nMessage type:" + typ + "\nTimestamp:" + ts);
+					break;
+		}
 		// if request
 			// if queue empty: push to queue: send grant
 
@@ -161,57 +204,6 @@ public class ProjCS extends Thread
 		byte[] bufArr = new byte[byteBuffer.remaining()];
 		byteBuffer.get(bufArr);
 		return new String(bufArr);
-	}
-
-	//Seperates the path from the message received on the server
-	public String newpath(String mesg)
-	{
-		String old_path = mesg.split("-")[0];
-		String[] parts = old_path.split(" ");
-		String path =  "" ;
-		for (int i=0; i<parts.length ; ++i )
-		{
-			path = path + parts[i] + " ";
-		}
-		if (path != null && path.length() > 1) {
-			return path.substring(0, path.length() - 1);
-		}
-		else
-		{
-			return "*";
-		}
-	}
-
-	//Strips the first node from the path in message received on the server
-	public static String strip_path(String mesg)
-	{
-		String old_path = mesg.split("-")[0];
-		String[] parts = old_path.split(" ");
-		String path =  "" ;
-		if(!old_path.contains(" "))
-		{
-			return "*";
-		}
-		else
-		{
-			for (int i=1; i<parts.length ; ++i )
-			{
-				path = path + parts[i] + " ";
-			}
-			if (path != null && path.length() > 1) {
-				return path.substring(0, path.length() - 1);
-			}
-			else
-			{
-				return "*";
-			}
-		}
-	}
-
-	//Returns labels from messages
-	public int readlabel(String mesg)
-	{
-		return Integer.parseInt(mesg.split("-")[1].trim());
 	}
 
 	//Reads the config file and saves the hosts ports and paths in global array lists
@@ -254,11 +246,12 @@ public class ProjCS extends Thread
 		obj = new ProjCS();
 		obj.readconfig(args[0]);
 		final int proc_no = Integer.parseInt(args[1]) - 1;
+		proc_number = proc_no; 
 		final String first_send_port = ports.get(Integer.parseInt(paths.get(proc_no).split(" ")[0]) - 1) ;
 		final String first_send_host = hosts.get(Integer.parseInt(paths.get(proc_no).split(" ")[0]) - 1) ;
 		
 	 	final String tstamp =  String.valueOf(System.currentTimeMillis() / 1000L) ;
-		final String mesg = proc_no + "-Request-" + tstamp;
+		final String mesg = proc_no + "-1-" + tstamp;
 		
 		// Storing list of own quorum members
 		own_quorums = paths.get(proc_no).split(" ");
