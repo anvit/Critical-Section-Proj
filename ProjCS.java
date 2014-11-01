@@ -191,11 +191,12 @@ public class ProjCS extends Thread
 						request_queue.add(temp_list);
 						final String mesg_a = proc_number + "-2-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
 						current_grant = sender ;
+						final int send_a = sender;
 						Thread thread1 = new Thread()
 						{
 							public void run()
 							{
-								obj.client(Integer.parseInt(ports.get(sender)),hosts.get(sender), mesg_a);
+								obj.client(Integer.parseInt(ports.get(send_a)),hosts.get(send_a), mesg_a);
 							}
 						};
 						thread1.start();
@@ -239,11 +240,12 @@ public class ProjCS extends Thread
 									temp_list.setTimestamp(ts);
 									request_queue.add(i,temp_list);
 									final String mesg_a = proc_number + "-6-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+									final int send_b = sender;
 									Thread thread1 = new Thread()
 									{
 										public void run()
 										{
-											obj.client(Integer.parseInt(ports.get(sender)),hosts.get(sender), mesg_a);
+											obj.client(Integer.parseInt(ports.get(send_b)),hosts.get(send_b), mesg_a);
 										}
 									};
 									thread1.start();
@@ -255,11 +257,12 @@ public class ProjCS extends Thread
 									temp_list.setTimestamp(ts);
 									request_queue.add(temp_list);
 									final String mesg_a = proc_number + "-6-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+									final int send_b = sender;
 									Thread thread1 = new Thread()
 									{
 										public void run()
 										{
-											obj.client(Integer.parseInt(ports.get(sender)),hosts.get(sender), mesg_a);
+											obj.client(Integer.parseInt(ports.get(send_b)),hosts.get(send_b), mesg_a);
 										}
 									};
 									thread1.start();
@@ -282,11 +285,12 @@ public class ProjCS extends Thread
 					if(failed_set.size()>0)
 					{
 						final String mesg_c = proc_number + "-5-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+						final int send_c = sender;
 						Thread thread1 = new Thread()
 						{
 							public void run()
 							{
-								obj.client(Integer.parseInt(ports.get(sender)),hosts.get(sender), mesg_c);
+								obj.client(Integer.parseInt(ports.get(send_c)),hosts.get(send_c), mesg_c);
 							}
 						};
 						thread1.start();
