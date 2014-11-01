@@ -2,9 +2,33 @@ import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 import com.sun.nio.sctp.*;
 import java.nio.*;
+
+class ListType
+{
+	private long timestamp;
+	private int id;
+	public long getTimestamp()
+	{
+		return timestamp;
+	}
+	public void setTimestamp(long timestamp)
+	{
+		this.timestamp = timestamp;
+	}
+	public int getId()
+	{
+		return id;
+	}
+	public void setId(int id)
+	{
+		this.id = id;
+	}
+}
 
 public class ProjCS extends Thread
 {
@@ -14,7 +38,11 @@ public class ProjCS extends Thread
 	static ArrayList<String> hosts = new ArrayList<String>();
 	static ArrayList<String> ports = new ArrayList<String>();
 	static ArrayList<String> paths = new ArrayList<String>();
-	static ArrayList<String> request_queue = new ArrayList<String>();
+	static ArrayList<ListType> request_queue = new ArrayList<ListType>();
+	static ArrayList<ListType> uncertain_list = new ArrayList<ListType>();
+	static ArrayList<String> grant_set = new ArrayList<String>();
+	static ArrayList<String> failed_set= new ArrayList<String>();
+	static int current_grant;
 	static String[] own_quorums;
 	static int proc_number;
 
@@ -133,7 +161,7 @@ public class ProjCS extends Thread
 				SctpChannel sctpChannel = sctpServerChannel.accept();
 				MessageInfo messageInfo = sctpChannel.receive(byteBuffer,null,null);
 				String message = byteToString(byteBuffer);
-				System.out.println(message);
+				// System.out.println(message);
 				String[] message_sections = message.split("-");
 				int sender = Integer.parseInt(message_sections[0]);
 				int typ = Integer.parseInt(message_sections[1]);
@@ -151,49 +179,129 @@ public class ProjCS extends Thread
 	// Placeholder for application 
 	public void server_application(int sender, int typ, long ts)
 	{
+		ListType temp_list = new ListType();			
 		switch(typ)
 		{
 			case 1: 	//Case Request
+					System.out.println("Sender:" + sender + "\nMessage type: Request\nTimestamp:" + ts);
 					if(request_queue.isEmpty())
 					{
-						System.out.println("Sender:" + sender + "\nMessage type:" + typ + "\nTimestamp:" + ts);
-						request_queue.add()
+						temp_list.setId(sender);
+						temp_list.setTimestamp(ts);
+						request_queue.add(temp_list);
+						final String mesg = proc_number + "-2-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+						current_grant = sender ; 
+						Thread thread1 = new Thread()
+						{
+							public void run()
+							{
+								obj.client(Integer.parseInt(ports.get(sender)),hosts.get(sender), mesg);
+							}
+						};
+						thread1.start();
+					}
+					else
+					{
+						if( (ts<request_queue.get(0).getTimestamp()) || (ts==request_queue.get(0).getTimestamp() && sender<request_queue.get(0).getId()) )
+						{
+							temp_list.setId(sender);
+							temp_list.setTimestamp(ts);
+							final String mesg = proc_number + "-3-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+							Thread thread1 = new Thread()
+							{
+								public void run()
+								{
+									obj.client(Integer.parseInt(ports.get(request_queue.get(0).getId())),hosts.get(request_queue.get(0).getId()), mesg);
+								}
+							};
+							thread1.start();
+							request_queue.add(0,temp_list);
+							uncertain_list.add(0,temp_list);
+						}
+						else
+						{
+							for(int i=1;i<request_queue.size();++i)
+							{
+								if(ts<request_queue.get(i).getTimestamp())
+								{
+									temp_list.setId(sender);
+									temp_list.setTimestamp(ts);
+									request_queue.add(i,temp_list);
+									final String mesg = proc_number + "-6-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+									Thread thread1 = new Thread()
+									{
+										public void run()
+										{
+											obj.client(Integer.parseInt(ports.get(sender)),hosts.get(sender), mesg);
+										}
+									};
+									thread1.start();
+									break;
+								}
+							}
+
+						}
 					}
 					break;
 			case 2: 	//Case Grant
-					System.out.println("Sender:" + sender + "\nMessage type:" + typ + "\nTimestamp:" + ts);
+					grant_set.add(sender);
+					if(grant_set.size()==own_quorums.size())
+					{
+						server_service();
+					}
+					System.out.println("Sender:" + sender + "\nMessage type: Grant\nTimestamp:" + ts);
 					break;
 			case 3:		//Case Inquire
-					System.out.println("Sender:" + sender + "\nMessage type:" + typ + "\nTimestamp:" + ts);
+					if(failed_set.size()>0)
+					{
+						final String mesg = proc_number + "-5-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+						Thread thread1 = new Thread()
+						{
+							public void run()
+							{
+								obj.client(Integer.parseInt(ports.get(sender)),hosts.get(sender), mesg);
+							}
+						};
+						thread1.start();
+					}
+					else
+					{
+						System.out.println("Received rogue inquire message. Inconsistent system state.");
+					}
+					System.out.println("Sender:" + sender + "\nMessage type: Inquire\nTimestamp:" + ts);
 					break;
 			case 4:		//Case Release
-					System.out.println("Sender:" + sender + "\nMessage type:" + typ + "\nTimestamp:" + ts);
+					
+					System.out.println("Sender:" + sender + "\nMessage type: Release\nTimestamp:" + ts);
 					break;
 			case 5:		//Case Yeild
-					System.out.println("Sender:" + sender + "\nMessage type:" + typ + "\nTimestamp:" + ts);
+					System.out.println("Sender:" + sender + "\nMessage type: Yeild\nTimestamp:" + ts);
 					break;
 			case 6:		//Case Failed
-					System.out.println("Sender:" + sender + "\nMessage type:" + typ + "\nTimestamp:" + ts);
+					System.out.println("Sender:" + sender + "\nMessage type: Emergency termination\nTimestamp:" + ts);
 					break;
 			case -1:	//Case Emegency termination
-					System.out.println("Sender:" + sender + "\nMessage type:" + typ + "\nTimestamp:" + ts);
+					System.out.println("Sender:" + sender + "\nMessage type: Request\nTimestamp:" + ts);
 					break;
 		}
-		// if request
-			// if queue empty: push to queue: send grant
+	}
 
-			// if queue not empty: if recvd timestamp is not min in the queue: push to end, send grant
+	public void server_service()
+	{
+		cs_enter();
+		cs_leave();
+	}
 
-			// if queue not empty: if recvd timestamp is min in the queue: push to head of queue, send inquire to the granted process
-		// if grant
+	public void cs_enter()
+	{
+		System.out.println("Entering critical section");
 
-		// if inquire
+	}
 
-		// if release
+	public void cs_leave()
+	{
+		System.out.println("Exiting critical section");
 
-		// if yeild
-
-		// if failed
 	}
 
 	//Converts byte buffer to string
@@ -250,7 +358,7 @@ public class ProjCS extends Thread
 		final String first_send_port = ports.get(Integer.parseInt(paths.get(proc_no).split(" ")[0]) - 1) ;
 		final String first_send_host = hosts.get(Integer.parseInt(paths.get(proc_no).split(" ")[0]) - 1) ;
 		
-	 	final String tstamp =  String.valueOf(System.currentTimeMillis() / 1000L) ;
+	 	String tstamp =  String.valueOf(System.currentTimeMillis() / 1000L) ;
 		final String mesg = proc_no + "-1-" + tstamp;
 		
 		// Storing list of own quorum members
@@ -270,7 +378,7 @@ public class ProjCS extends Thread
 		for(int j=0 ; j<own_quorums.length; ++j)
 		{
 			final int i = j;
-			System.out.println(own_quorums[i]);
+			// System.out.println(own_quorums[i]);
 			Thread thread1 = new Thread()
 			{
 				public void run()
