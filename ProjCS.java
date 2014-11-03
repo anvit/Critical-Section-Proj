@@ -56,7 +56,7 @@ public class ProjCS extends Thread
 	YEILD:		5
 	FAILED:		6
 	
-	EMERGENCY TERMINATION: -1
+	EMERGENCY TERMINATION: 0
 
 	*/
 
@@ -179,11 +179,32 @@ public class ProjCS extends Thread
 	// Placeholder for application 
 	public void server_application(int sender, int typ, long ts)
 	{
+		System.out.print("\nGrant set: [ ");
+		for(int i = 0;i<grant_set.size();++i)
+		{
+			System.out.println(grant_set.get(i));
+		}
+		System.out.print("]");
+		System.out.print("\nUncertain list: [ ");
+		for(int i = 0;i<uncertain_list.size();++i)
+		{
+			System.out.println(uncertain_list.get(i));
+		}
+		System.out.print("]");
+		System.out.print("\nRequest queue: [ ");
+		for(int i = 0;i<request_queue.size();++i)
+		{
+			System.out.print( (request_queue.get(i).getId()+1) + "," );
+		}
+		System.out.println("]\n");
 		ListType temp_list = new ListType();			
 		switch(typ)
 		{
+			case 0:	//Case Emegency termination
+					System.out.println("Sender:" + (sender + 1) + "\nMessage type: Emergency termination\nTimestamp:" + ts);
+					break;
 			case 1: 	//Case Request
-					System.out.println("Sender:" + sender + "\nMessage type: Request\nTimestamp:" + ts);
+					System.out.println("Sender:" + (sender + 1) + "\nMessage type: Request\nTimestamp:" + ts);
 					if(request_queue.isEmpty())
 					{
 						temp_list.setId(sender);
@@ -200,6 +221,7 @@ public class ProjCS extends Thread
 							}
 						};
 						thread1.start();
+						System.out.println("Sending grant to "+ current_grant+ " on empty set request");
 					}
 					else
 					{
@@ -207,26 +229,35 @@ public class ProjCS extends Thread
 						{
 							temp_list.setId(sender);
 							temp_list.setTimestamp(ts);
-							final String mesg_a = proc_number + "-3-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
-							Thread thread1 = new Thread()
-							{
-								public void run()
-								{
-									obj.client(Integer.parseInt(ports.get(request_queue.get(0).getId())),hosts.get(request_queue.get(0).getId()), mesg_a);
-								}
-							};
-							thread1.start();
 							request_queue.add(0,temp_list);
-							for(int j=0; j<uncertain_list.size();++j)
+							if(uncertain_list.isEmpty())
 							{
-								if(ts<uncertain_list.get(j).getTimestamp())
+								uncertain_list.add(temp_list);
+								final String mesg_a = proc_number + "-3-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+								Thread thread1 = new Thread()
 								{
-									uncertain_list.add(j,temp_list);
-									break;
-								}
-								else if(j==(uncertain_list.size()-1))
+									public void run()
+									{
+										obj.client(Integer.parseInt(ports.get(request_queue.get(0).getId())),hosts.get(request_queue.get(0).getId()), mesg_a);
+									}
+								};
+								thread1.start();
+							}
+							else 
+							{
+								for(int j=0; j<uncertain_list.size();++j)
 								{
-									uncertain_list.add(temp_list);
+									if(ts<uncertain_list.get(j).getTimestamp())
+									{
+										System.out.println("Inserted in "+ j +" position in uncertain list: "+ temp_list.getId());
+										uncertain_list.add(j,temp_list);
+										break;
+									}
+									else if(j==(uncertain_list.size()-1))
+									{
+										System.out.println("Inserted in last positionin uncertain list:  "+ temp_list.getId());
+										uncertain_list.add(temp_list);
+									}
 								}
 							}
 						}
@@ -249,10 +280,12 @@ public class ProjCS extends Thread
 										}
 									};
 									thread1.start();
+									System.out.println("Inserted in "+i +" position request queue: "+request_queue.get(i).getId());
 									break;
 								}
 								else if(i==(request_queue.size()-1))
 								{
+									System.out.println("Last in request queue: "+request_queue.get(i).getId());
 									temp_list.setId(sender);
 									temp_list.setTimestamp(ts);
 									request_queue.add(temp_list);
@@ -274,16 +307,29 @@ public class ProjCS extends Thread
 					}
 					break;
 			case 2: 	//Case Grant
-					grant_set.add(sender);
+					if(!grant_set.contains(sender))
+					{
+						grant_set.add(sender);
+					}
 					if(grant_set.size()==own_quorums.length)
 					{
 						server_service();
+						failed_set.clear();
+						grant_set.clear();
 					}
-					System.out.println("Sender:" + sender + "\nMessage type: Grant\nTimestamp:" + ts);
+					System.out.println("Sender:" + (sender + 1) + "\nMessage type: Grant\nTimestamp:" + ts);
 					break;
 			case 3:		//Case Inquire
-					if(failed_set.size()>0)
+					if(grant_set.size()<own_quorums.length)
 					{
+						for(int i=0;i<grant_set.size();++i)
+						{
+							if(grant_set.get(i) == sender)
+							{
+								grant_set.remove(i);
+								break;
+							}
+						}
 						final String mesg_c = proc_number + "-5-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
 						final int send_c = sender;
 						Thread thread1 = new Thread()
@@ -295,11 +341,7 @@ public class ProjCS extends Thread
 						};
 						thread1.start();
 					}
-					else
-					{
-						System.out.println("Received rogue inquire message. Inconsistent system state.");
-					}
-					System.out.println("Sender:" + sender + "\nMessage type: Inquire\nTimestamp:" + ts);
+					System.out.println("Sender:" + (sender + 1) + "\nMessage type: Inquire\nTimestamp:" + ts);
 					break;
 			case 4:		//Case Release
 					for(int i=0;i<request_queue.size();++i)
@@ -310,52 +352,72 @@ public class ProjCS extends Thread
 							break;
 						}
 					}
-					final String mesg_d = proc_number + "-2-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
-					current_grant = request_queue.get(0).getId();
-					Thread thread1 = new Thread()
+					if(request_queue.size()>0)
 					{
-						public void run()
+						final String mesg_d = proc_number + "-2-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+						current_grant = request_queue.get(0).getId();
+						Thread thread1 = new Thread()
 						{
-							obj.client(Integer.parseInt(ports.get(request_queue.get(0).getId())),hosts.get(request_queue.get(0).getId()), mesg_d);
-						}
-					};
-					thread1.start();
-					System.out.println("Sender:" + sender + "\nMessage type: Release\nTimestamp:" + ts);
+							public void run()
+							{
+								obj.client(Integer.parseInt(ports.get(current_grant)),hosts.get(current_grant), mesg_d);
+							}
+						};
+						thread1.start();
+						System.out.println("Sending grant to "+ current_grant+ " on release");
+						System.out.println("Sender:" + (sender + 1) + "\nMessage type: Release\nTimestamp:" + ts);
+					}
 					break;
 			case 5:		//Case Yeild
 					final String mesg_e = proc_number + "-2-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
-					current_grant = uncertain_list.get(0).getId() ;
-					Thread thread = new Thread()
-					{
-						public void run()
-						{
-							obj.client(Integer.parseInt(ports.get(uncertain_list.get(0).getId())),hosts.get(uncertain_list.get(0).getId()), mesg_e);
-						}
-					};
-					thread.start();
+					System.out.println("In Yeild:"+uncertain_list.size());
+					current_grant = uncertain_list.get(0).getId();
 					uncertain_list.remove(0);
 					for(int i=0;i<uncertain_list.size();++i )
 					{
 						final int j = i;
+						final int failed_id = uncertain_list.get(j).getId();
 						final String mesg_e1 = proc_number + "-6-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
 						Thread thread2 = new Thread()
 						{
 							public void run()
 							{
-								obj.client(Integer.parseInt(ports.get(uncertain_list.get(j).getId())),hosts.get(uncertain_list.get(j).getId()), mesg_e1);
+								obj.client(Integer.parseInt(ports.get(failed_id)),hosts.get(failed_id), mesg_e1);
 							}
 						};
 						thread2.start();
 					}
+					System.out.println("Sending grant to "+ current_grant+ " on yeild");
+					Thread thread = new Thread()
+					{
+						public void run()
+						{
+							obj.client(Integer.parseInt(ports.get(current_grant)),hosts.get(current_grant), mesg_e);
+						}
+					};
+					thread.start();
+					try
+					{
+						Thread.sleep(100); //100ms seconds
+					}
+					catch(InterruptedException ex)
+					{
+						Thread.currentThread().interrupt();
+					}
 					uncertain_list.clear();
-					System.out.println("Sender:" + sender + "\nMessage type: Yeild\nTimestamp:" + ts);
+					System.out.println("Sender:" + (sender + 1) + "\nMessage type: Yeild\nTimestamp:" + ts);
 					break;
 			case 6:		//Case Failed
 					failed_set.add(sender);
-					System.out.println("Sender:" + sender + "\nMessage type: Emergency termination\nTimestamp:" + ts);
-					break;
-			case -1:	//Case Emegency termination
-					System.out.println("Sender:" + sender + "\nMessage type: Request\nTimestamp:" + ts);
+					for(int i=0;i<grant_set.size();++i)
+					{
+						if(grant_set.get(i) == sender)
+						{
+							grant_set.remove(i);
+							break;
+						}
+					}
+					System.out.println("Sender:" + (sender + 1) + "\nMessage type: Failed\nTimestamp:" + ts);
 					break;
 		}
 	}
@@ -363,18 +425,64 @@ public class ProjCS extends Thread
 	public void server_service()
 	{
 		cs_enter();
+		try 
+		{
+			Thread.sleep(3000);                 //1000 milliseconds is one second.
+		}
+		catch(InterruptedException ex)
+		{
+			Thread.currentThread().interrupt();
+		}
 		cs_leave();
+
+		final String mesg_e = proc_number + "-4-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+		for(int j=0 ; j<own_quorums.length; ++j)
+		{
+			final int i = j;
+			// System.out.println(own_quorums[i]);
+			Thread thread1 = new Thread()
+			{
+				public void run()
+				{
+					obj.client(Integer.parseInt(ports.get(Integer.parseInt(own_quorums[i]) - 1 )),hosts.get(Integer.parseInt(own_quorums[i]) - 1 )  , mesg_e);
+				}
+			};
+			thread1.start();
+		}
+
 	}
 
 	public void cs_enter()
 	{
 		System.out.println("Entering critical section");
+		try
+		{
+			String filename= "CSlog.txt";
+			FileWriter fw = new FileWriter(filename,true); //the true will append the new data
+			fw.write((proc_number+1)+ " entering critical section\n");//appends the string to the file
+			fw.close();
+		}
+		catch(IOException ioe)
+		{
+			System.err.println("IOException: " + ioe.getMessage());
+		}
 
 	}
 
 	public void cs_leave()
 	{
-		System.out.println("Exiting critical section");
+		System.out.println("Leaving critical section");
+		try
+		{
+			String filename= "CSlog.txt";
+			FileWriter fw = new FileWriter(filename,true); //the true will append the new data
+			fw.write((proc_number+1)+ " leaving critical section\n");//appends the string to the file
+			fw.close();
+		}
+		catch(IOException ioe)
+		{
+			System.err.println("IOException: " + ioe.getMessage());
+		}
 
 	}
 
@@ -429,8 +537,6 @@ public class ProjCS extends Thread
 		obj.readconfig(args[0]);
 		final int proc_no = Integer.parseInt(args[1]) - 1;
 		proc_number = proc_no; 
-		final String first_send_port = ports.get(Integer.parseInt(paths.get(proc_no).split(" ")[0]) - 1) ;
-		final String first_send_host = hosts.get(Integer.parseInt(paths.get(proc_no).split(" ")[0]) - 1) ;
 		
 	 	String tstamp =  String.valueOf(System.currentTimeMillis() / 1000L) ;
 		final String mesg = proc_no + "-1-" + tstamp;
