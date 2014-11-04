@@ -31,47 +31,6 @@ class ListType
 }
 
 
-class MqType
-{
-	private long timestamp;
-	private int id;
-	private int typ;
-	private int inq;
-	public long getTimestamp()
-	{
-		return timestamp;
-	}
-	public int getId()
-	{
-		return id;
-	}
-	public int getTyp()
-	{
-		return typ;
-	}
-	public int getInq()
-	{
-		return inq;
-	}
-	public void setInq(int inq)
-	{
-		this.inq = inq;
-	}
-	public void setTyp(int typ)
-	{
-		this.typ = typ;
-	}
-	public void setTimestamp(long timestamp)
-	{
-		this.timestamp = timestamp;
-	}
-	public void setId(int id)
-	{
-		this.id = id;
-	}
-}
-
-
 public class ProjCS extends Thread
 {
 	public static final int MESSAGE_SIZE = 100;
@@ -83,6 +42,7 @@ public class ProjCS extends Thread
 	static ArrayList<ListType> request_queue = new ArrayList<ListType>();
 	// static ArrayList<ListType> uncertain_list = new ArrayList<ListType>();
 	static ArrayList<Integer> grant_set = new ArrayList<Integer>();
+	static ArrayList<Integer> received_grant_set = new ArrayList<Integer>();
 	static ArrayList<Integer> failed_set= new ArrayList<Integer>();
 	static ArrayList<MqType> message_queue = new ArrayList<MqType>();
 	static int current_grant;
@@ -214,40 +174,7 @@ public class ProjCS extends Thread
 				{
 					inq = Integer.parseInt(message_sections[3].trim());
 				}
-				MqType temp_queue = new MqType();
-				temp_queue.setId(sender);
-				temp_queue.setTimestamp(ts);
-				temp_queue.setTyp(typ);
-				temp_queue.setInq(inq);
-				if(message_queue.isEmpty())
-				{
-					message_queue.add(temp_queue);
-				}
-				else
-				{
-					for(int i = 0; i<message_queue.size();++i)
-					{
-						if(ts<message_queue.get(i).getTimestamp())
-						{
-							message_queue.add(i,temp_queue);
-							break;
-						}
-						else if(i==(message_queue.size()-1))
-						{
-							message_queue.add(temp_queue);
-							break;
-						}
-					}
-				}
-				if(!message_queue.isEmpty())
-				{
-					sender = message_queue.get(0).getId();
-					typ = message_queue.get(0).getTyp();
-					ts = message_queue.get(0).getTimestamp();
-					inq = message_queue.get(0).getInq();
-					message_queue.remove(0);
-					server_application(sender,typ,ts,inq);
-				}
+				server_application(sender,typ,ts,inq);
 			}
 		}
 		catch(IOException ex)
@@ -266,19 +193,7 @@ public class ProjCS extends Thread
 					System.out.println("Sender:" + (sender + 1) + "\nMessage type: Emergency termination\nTimestamp:" + ts);
 					break;
 			case 1: 	//Case Request
-					System.out.print("*******Request Case***********");
-					System.out.print("\nGrant set: [ ");
-					for(int x = 0;x<grant_set.size();++x)
-					{
-						System.out.print((grant_set.get(x)+1) + "," );
-					}
-					System.out.print("]");
-					System.out.print("\nRequest queue: [ ");
-					for(int h = 0;h<request_queue.size();++h)
-					{
-						System.out.print( (request_queue.get(h).getId()+1) + "," );
-					}
-					System.out.print("]\n");
+					System.out.print("*******Request Case***********\n");
 					System.out.println("Sender:" + (sender + 1) + "\nMessage type: Request\nTimestamp:" + ts);
 					if(request_queue.isEmpty())
 					{
@@ -296,7 +211,7 @@ public class ProjCS extends Thread
 							}
 						};
 						thread1.start();
-						System.out.println("Sending grant to "+ current_grant+ " on empty set request");
+						System.out.println("Sending grant to "+ (current_grant+1)+ " on empty set request");
 					}
 					else
 					{
@@ -306,6 +221,7 @@ public class ProjCS extends Thread
 							temp_list.setTimestamp(ts);
 							final String mesg_a = proc_number + "-3-" + String.valueOf(System.currentTimeMillis() / 1000L) + "-" + sender;
 							final int to_inquire = request_queue.get(0).getId();
+							request_queue.add(0,temp_list);
 							Thread thread1 = new Thread()
 							{
 								public void run()
@@ -314,18 +230,19 @@ public class ProjCS extends Thread
 								}
 							};
 							thread1.start();
-							request_queue.add(0,temp_list);
 						}
 						else
 						{
+							boolean flag = false;
 							for(int i=1;i<request_queue.size();++i)
 							{
 								if(ts<request_queue.get(i).getTimestamp())
 								{
+									flag = true;
 									temp_list.setId(sender);
 									temp_list.setTimestamp(ts);
-									request_queue.add(i,temp_list);
 									final String mesg_a = proc_number + "-6-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+									request_queue.add(i,temp_list);
 									final int send_b = sender;
 									Thread thread1 = new Thread()
 									{
@@ -338,30 +255,27 @@ public class ProjCS extends Thread
 									System.out.println("Inserted in "+i +" position request queue: "+request_queue.get(i).getId());
 									break;
 								}
-								else if(i==(request_queue.size()-1))
+							}
+							if(!flag)
+							{
+								System.out.println("Last in request queue: "+(sender+1));
+								temp_list.setId(sender);
+								temp_list.setTimestamp(ts);
+								final String mesg_a = proc_number + "-6-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
+								final int send_b = sender;
+								request_queue.add(temp_list);
+								Thread thread1 = new Thread()
 								{
-									System.out.println("Last in request queue: "+request_queue.get(i).getId());
-									temp_list.setId(sender);
-									temp_list.setTimestamp(ts);
-									request_queue.add(temp_list);
-									final String mesg_a = proc_number + "-6-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
-									final int send_b = sender;
-									Thread thread1 = new Thread()
+									public void run()
 									{
-										public void run()
-										{
-											obj.client(Integer.parseInt(ports.get(send_b)),hosts.get(send_b), mesg_a);
-										}
-									};
-									thread1.start();
-									break;
-								}
+										obj.client(Integer.parseInt(ports.get(send_b)),hosts.get(send_b), mesg_a);
+									}
+								};
+								thread1.start();
+								break;
 							}
 						}
 					}
-					break;
-			case 2: 	//Case Grant
-					System.out.print("*******Grant Case***********");
 					System.out.print("\nGrant set: [ ");
 					for(int x = 0;x<grant_set.size();++x)
 					{
@@ -371,12 +285,28 @@ public class ProjCS extends Thread
 					System.out.print("\nRequest queue: [ ");
 					for(int h = 0;h<request_queue.size();++h)
 					{
-						System.out.print( (request_queue.get(h).getId()+1) + "," );
+						System.out.print( (request_queue.get(h).getId()+1) + "-" + (request_queue.get(h).getTimestamp()) + "," );
 					}
 					System.out.print("]\n");
+					System.out.println("---------------------------------");
+					break;
+			case 2: 	//Case Grant
+					System.out.print("*******Grant Case***********\n");
 					if(!grant_set.contains(sender))
 					{
-						grant_set.add(sender);
+						boolean flag = false;
+						for(int i=0;i<received_grant_set.size();++i)
+						{
+							if(received_grant_set.get(i)==sender)
+							{
+								received_grant_set.remove(i);
+								flag = true;
+							}
+						}
+						if(!flag)
+						{
+							grant_set.add(sender);
+						}
 					}
 					if(grant_set.size()==own_quorums.length)
 					{
@@ -384,10 +314,6 @@ public class ProjCS extends Thread
 						failed_set.clear();
 						grant_set.clear();
 					}
-					System.out.println("Sender:" + (sender + 1) + "\nMessage type: Grant\nTimestamp:" + ts);
-					break;
-			case 3:		//Case Inquire
-					System.out.print("*******Inquire Case***********");
 					System.out.print("\nGrant set: [ ");
 					for(int x = 0;x<grant_set.size();++x)
 					{
@@ -397,9 +323,19 @@ public class ProjCS extends Thread
 					System.out.print("\nRequest queue: [ ");
 					for(int h = 0;h<request_queue.size();++h)
 					{
-						System.out.print( (request_queue.get(h).getId()+1) + "," );
+						System.out.print( (request_queue.get(h).getId()+1) + "-" + (request_queue.get(h).getTimestamp()) + "," );
 					}
 					System.out.print("]\n");
+					System.out.println("Sender:" + (sender + 1) + "\nMessage type: Grant\nTimestamp:" + ts);
+					System.out.println("---------------------------------");
+					break;
+			case 3:		//Case Inquire
+					System.out.print("*******Inquire Case***********\n");
+					boolean flag = false;
+					if(failed_set.size()>0)
+					{
+						flag = true;
+					}
 					if(grant_set.size()<own_quorums.length)
 					{
 						for(int i=0;i<grant_set.size();++i)
@@ -407,8 +343,13 @@ public class ProjCS extends Thread
 							if(grant_set.get(i) == sender)
 							{
 								grant_set.remove(i);
+								flag = true;
 								break;
 							}
+						}
+						if(!flag)
+						{
+							received_grant_set.add(sender);
 						}
 						final String mesg_c = proc_number + "-5-" + String.valueOf(System.currentTimeMillis() / 1000L) + "-" + inq;
 						final int send_c = sender;
@@ -421,10 +362,6 @@ public class ProjCS extends Thread
 						};
 						thread1.start();
 					}
-					System.out.println("Sender:" + (sender + 1) + "\nMessage type: Inquire\nTimestamp:" + ts);
-					break;
-			case 4:		//Case Release
-					System.out.print("*******Release Case***********");
 					System.out.print("\nGrant set: [ ");
 					for(int x = 0;x<grant_set.size();++x)
 					{
@@ -434,9 +371,14 @@ public class ProjCS extends Thread
 					System.out.print("\nRequest queue: [ ");
 					for(int h = 0;h<request_queue.size();++h)
 					{
-						System.out.print( (request_queue.get(h).getId()+1) + "," );
+						System.out.print( (request_queue.get(h).getId()+1) + "-" + (request_queue.get(h).getTimestamp()) + "," );
 					}
 					System.out.print("]\n");
+					System.out.println("Sender:" + (sender + 1) + "\nMessage type: Inquire\nTimestamp:" + ts);
+					System.out.println("---------------------------------");
+					break;
+			case 4:		//Case Release
+					System.out.print("*******Release Case***********\n");
 					for(int i=0;i<request_queue.size();++i)
 					{
 						if(request_queue.get(i).getId()==current_grant)
@@ -457,27 +399,28 @@ public class ProjCS extends Thread
 							}
 						};
 						thread1.start();
-						System.out.println("Sending grant to "+ current_grant+ " on release");
+						System.out.print("\nGrant set: [ ");
+						for(int x = 0;x<grant_set.size();++x)
+						{
+							System.out.print((grant_set.get(x)+1) + "," );
+						}
+						System.out.print("]");
+						System.out.print("\nRequest queue: [ ");
+						for(int h = 0;h<request_queue.size();++h)
+						{
+							System.out.print( (request_queue.get(h).getId()+1) + "-" + (request_queue.get(h).getTimestamp()) + "," );
+						}
+						System.out.print("]\n");
+						System.out.println("Sending grant to "+ (current_grant+1)+ " on release");
 						System.out.println("Sender:" + (sender + 1) + "\nMessage type: Release\nTimestamp:" + ts);
 					}
+					System.out.println("---------------------------------");
 					break;
 			case 5:		//Case Yeild
-					System.out.print("*******Yeild Case***********");
-					System.out.print("\nGrant set: [ ");
-					for(int x = 0;x<grant_set.size();++x)
-					{
-						System.out.print((grant_set.get(x)+1) + "," );
-					}
-					System.out.print("]");
-					System.out.print("\nRequest queue: [ ");
-					for(int h = 0;h<request_queue.size();++h)
-					{
-						System.out.print( (request_queue.get(h).getId()+1) + "," );
-					}
-					System.out.print("]\n");
+					System.out.print("*******Yeild Case***********\n");
 					final String mesg_e = proc_number + "-2-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
 					current_grant = inq;
-					System.out.println("Sending grant to "+ current_grant+ " on yeild");
+					System.out.println("Sending grant to "+ (current_grant+1)+ " on yeild");
 					Thread thread = new Thread()
 					{
 						public void run()
@@ -494,10 +437,6 @@ public class ProjCS extends Thread
 					{
 						Thread.currentThread().interrupt();
 					}
-					System.out.println("Sender:" + (sender + 1) + "\nMessage type: Yeild\nTimestamp:" + ts);
-					break;
-			case 6:		//Case Failed
-					System.out.print("*******Failed Case***********");
 					System.out.print("\nGrant set: [ ");
 					for(int x = 0;x<grant_set.size();++x)
 					{
@@ -507,9 +446,14 @@ public class ProjCS extends Thread
 					System.out.print("\nRequest queue: [ ");
 					for(int h = 0;h<request_queue.size();++h)
 					{
-						System.out.print( (request_queue.get(h).getId()+1) + "," );
+						System.out.print( (request_queue.get(h).getId()+1) + "-" + (request_queue.get(h).getTimestamp()) + "," );
 					}
 					System.out.print("]\n");
+					System.out.println("Sender:" + (sender + 1) + "\nMessage type: Yeild\nTimestamp:" + ts);
+					System.out.println("---------------------------------");
+					break;
+			case 6:		//Case Failed
+					System.out.print("*******Failed Case***********\n");
 					failed_set.add(sender);
 					for(int i=0;i<grant_set.size();++i)
 					{
@@ -519,7 +463,20 @@ public class ProjCS extends Thread
 							break;
 						}
 					}
+					System.out.print("\nGrant set: [ ");
+					for(int x = 0;x<grant_set.size();++x)
+					{
+						System.out.print((grant_set.get(x)+1) + "," );
+					}
+					System.out.print("]");
+					System.out.print("\nRequest queue: [ ");
+					for(int h = 0;h<request_queue.size();++h)
+					{
+						System.out.print( (request_queue.get(h).getId()+1) + "-" + (request_queue.get(h).getTimestamp()) + "," );
+					}
+					System.out.print("]\n");
 					System.out.println("Sender:" + (sender + 1) + "\nMessage type: Failed\nTimestamp:" + ts);
+					System.out.println("---------------------------------");
 					break;
 		}
 	}
@@ -556,7 +513,8 @@ public class ProjCS extends Thread
 
 	public void cs_enter()
 	{
-		System.out.println("Entering critical section");
+		System.out.println(".----------------------------.");
+		System.out.println("|Entering critical section |");
 		System.out.print("\nGrant set: [ ");
 		for(int x = 0;x<grant_set.size();++x)
 		{
@@ -566,7 +524,7 @@ public class ProjCS extends Thread
 		System.out.print("\nRequest queue: [ ");
 		for(int h = 0;h<request_queue.size();++h)
 		{
-			System.out.print( (request_queue.get(h).getId()+1) + "," );
+			System.out.print( (request_queue.get(h).getId()+1) + "-" + (request_queue.get(h).getTimestamp()) + "," );
 		}
 		System.out.print("]\n");
 		
@@ -586,6 +544,7 @@ public class ProjCS extends Thread
 
 	public void cs_leave()
 	{
+		System.out.println("'----------------------------'");
 		System.out.println("Leaving critical section");
 		try
 		{
