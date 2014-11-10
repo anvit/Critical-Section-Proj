@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Random;
 import com.sun.nio.sctp.*;
 import java.nio.*;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 
 class ListType
 {
@@ -40,11 +42,9 @@ public class ProjCS extends Thread
 	static ArrayList<String> ports = new ArrayList<String>();
 	static ArrayList<String> paths = new ArrayList<String>();
 	static ArrayList<ListType> request_queue = new ArrayList<ListType>();
-	// static ArrayList<ListType> uncertain_list = new ArrayList<ListType>();
 	static ArrayList<Integer> grant_set = new ArrayList<Integer>();
 	static ArrayList<Integer> received_grant_set = new ArrayList<Integer>();
 	static ArrayList<Integer> failed_set= new ArrayList<Integer>();
-	static ArrayList<MqType> message_queue = new ArrayList<MqType>();
 	static int current_grant;
 	static String[] own_quorums;
 	static int proc_number;
@@ -59,7 +59,7 @@ public class ProjCS extends Thread
 	YEILD:		5
 	FAILED:		6
 	
-	EMERGENCY TERMINATION: 0
+	EMERGENCY TERMINATION: 0 //Unused!!
 
 	*/
 
@@ -184,8 +184,18 @@ public class ProjCS extends Thread
 	}
 
 
+//  .M"""bgd                                                       db                          
+// ,MI    "Y                                                      ;MM:                         
+// `MMb.      .gP"Ya `7Mb,od8 `7M'   `MF'.gP"Ya `7Mb,od8         ,V^MM.   `7MMpdMAo.`7MMpdMAo. 
+//   `YMMNq. ,M'   Yb  MM' "'   VA   ,V ,M'   Yb  MM' "'        ,M  `MM     MM   `Wb  MM   `Wb 
+// .     `MM 8M""""""  MM        VA ,V  8M""""""  MM            AbmmmqMA    MM    M8  MM    M8 
+// Mb     dM YM.    ,  MM         VVV   YM.    ,  MM           A'     VML   MM   ,AP  MM   ,AP 
+// P"Ybmmd"   `Mbmmd'.JMML.        W     `Mbmmd'.JMML.       .AMA.   .AMMA. MMbmmd'   MMbmmd'  
+//                                                                          MM        MM       
+//                                                                        .JMML.    .JMML.    
+
 	public void server_application(int sender, int typ, long ts, int inq)
-	{
+	{	// For handling different types of messages and granting CS entry	
 		ListType temp_list = new ListType();			
 		switch(typ)
 		{
@@ -455,14 +465,14 @@ public class ProjCS extends Thread
 			case 6:		//Case Failed
 					System.out.print("*******Failed Case***********\n");
 					failed_set.add(sender);
-					for(int i=0;i<grant_set.size();++i)
-					{
-						if(grant_set.get(i) == sender)
-						{
-							grant_set.remove(i);
-							break;
-						}
-					}
+					// for(int i=0;i<grant_set.size();++i)
+					// {
+					// 	if(grant_set.get(i) == sender)
+					// 	{
+					// 		grant_set.remove(i);
+					// 		break;
+					// 	}
+					// }
 					System.out.print("\nGrant set: [ ");
 					for(int x = 0;x<grant_set.size();++x)
 					{
@@ -481,18 +491,22 @@ public class ProjCS extends Thread
 		}
 	}
 
+
+//                                         ,,                                                         
+//  .M"""bgd                               db                             db                          
+// ,MI    "Y                                                             ;MM:                         
+// `MMb.      .gP"Ya `7Mb,od8 `7M'   `MF'`7MM  ,p6"bo   .gP"Ya          ,V^MM.   `7MMpdMAo.`7MMpdMAo. 
+//   `YMMNq. ,M'   Yb  MM' "'   VA   ,V    MM 6M'  OO  ,M'   Yb        ,M  `MM     MM   `Wb  MM   `Wb 
+// .     `MM 8M""""""  MM        VA ,V     MM 8M       8M""""""        AbmmmqMA    MM    M8  MM    M8 
+// Mb     dM YM.    ,  MM         VVV      MM YM.    , YM.    ,       A'     VML   MM   ,AP  MM   ,AP 
+// P"Ybmmd"   `Mbmmd'.JMML.        W     .JMML.YMbmd'   `Mbmmd'     .AMA.   .AMMA. MMbmmd'   MMbmmd'  
+//                                                                                 MM        MM       
+//                                                                               .JMML.    .JMML.     
+
 	public void server_service()
 	{
-		cs_enter();
-		try 
-		{
-			Thread.sleep(3000);                 //3 seconds
-		}
-		catch(InterruptedException ex)
-		{
-			Thread.currentThread().interrupt();
-		}
-		cs_leave();
+		// For executing CS enter and leave
+		test_module(); 
 
 		final String mesg_e = proc_number + "-4-" + String.valueOf(System.currentTimeMillis() / 1000L) ;
 		for(int j=0 ; j<own_quorums.length; ++j)
@@ -510,6 +524,88 @@ public class ProjCS extends Thread
 		}
 
 	}
+
+
+//                                                                       ,,               ,,          
+// MMP""MM""YMM               mm                                       `7MM             `7MM          
+// P'   MM   `7               MM                                         MM               MM          
+//      MM  .gP"Ya  ,pP"Ybd mmMMmm     `7MMpMMMb.pMMMb.  ,pW"Wq.    ,M""bMM `7MM  `7MM    MM  .gP"Ya  
+//      MM ,M'   Yb 8I   `"   MM         MM    MM    MM 6W'   `Wb ,AP    MM   MM    MM    MM ,M'   Yb 
+//      MM 8M"""""" `YMMMa.   MM         MM    MM    MM 8M     M8 8MI    MM   MM    MM    MM 8M"""""" 
+//      MM YM.    , L.   I8   MM         MM    MM    MM YA.   ,A9 `Mb    MM   MM    MM    MM YM.    , 
+//    .JMML.`Mbmmd' M9mmmP'   `Mbmo    .JMML  JMML  JMML.`Ybmd9'   `Wbmd"MML. `Mbod"YML..JMML.`Mbmmd' 
+
+	public void test_module()
+	{
+		// For checking multiple CS entries
+		RandomAccessFile file = null;
+		FileChannel f = null;
+		FileLock lock = null;
+
+		try
+		{
+			String filename = "lock.lck";
+			File lockfile = new File(filename);
+			file = new RandomAccessFile(lockfile, "rw");
+			f = file.getChannel();
+			lock = f.tryLock();
+			if (lock != null)
+			{
+				//Enter CS here
+				cs_enter();
+				try
+				{
+					Thread.sleep(2000);				//2 seconds
+				}
+				catch(InterruptedException ex)
+				{
+					Thread.currentThread().interrupt();
+				}
+				//Leave CS here
+				cs_leave();
+				lockfile.deleteOnExit();
+				ByteBuffer bytes = ByteBuffer.allocate(8);
+				bytes.putLong(System.currentTimeMillis() + 10000).flip();
+				f.write(bytes);
+				f.force(false);
+			}
+			else
+			{
+				System.out.println("Multiple CS entry attempt by: " + (proc_number+1) );
+				String filename1= "CSlog.txt";
+				FileWriter fw = new FileWriter(filename1,true); //the true will append the new data
+				fw.write("Multiple CS entry!! : "+(proc_number+1)); //appends the string to the file
+				fw.close();
+			}
+		}
+		catch(IOException ioe)
+		{
+			System.err.println("IOException: " + ioe.getMessage());
+		}
+		finally
+		{
+			try
+			{
+				if (lock != null && lock.isValid())
+					lock.release();
+				if (file != null)
+					file.close();
+			}
+			catch(IOException ioe)
+			{
+				System.err.println("IOException: " + ioe.getMessage());
+			}
+		}	
+	}
+
+
+//   .g8"""bgd  .M"""bgd                         mm                   
+// .dP'     `M ,MI    "Y                         MM                   
+// dM'       ` `MMb.          .gP"Ya `7MMpMMMb.mmMMmm .gP"Ya `7Mb,od8 
+// MM            `YMMNq.     ,M'   Yb  MM    MM  MM  ,M'   Yb  MM' "' 
+// MM.         .     `MM     8M""""""  MM    MM  MM  8M""""""  MM     
+// `Mb.     ,' Mb     dM     YM.    ,  MM    MM  MM  YM.    ,  MM     
+//   `"bmmmd'  P"Ybmmd"       `Mbmmd'.JMML  JMML.`Mbmo`Mbmmd'.JMML.  
 
 	public void cs_enter()
 	{
@@ -542,6 +638,16 @@ public class ProjCS extends Thread
 
 	}
 
+
+//                             ,,                                    
+//   .g8"""bgd  .M"""bgd     `7MM                                    
+// .dP'     `M ,MI    "Y       MM                                    
+// dM'       ` `MMb.           MM  .gP"Ya   ,6"Yb.`7M'   `MF'.gP"Ya  
+// MM            `YMMNq.       MM ,M'   Yb 8)   MM  VA   ,V ,M'   Yb 
+// MM.         .     `MM       MM 8M""""""  ,pm9MM   VA ,V  8M"""""" 
+// `Mb.     ,' Mb     dM       MM YM.    , 8M   MM    VVV   YM.    , 
+//   `"bmmmd'  P"Ybmmd"      .JMML.`Mbmmd' `Moo9^Yo.   W     `Mbmmd' 
+
 	public void cs_leave()
 	{
 		System.out.println("'----------------------------'");
@@ -560,9 +666,10 @@ public class ProjCS extends Thread
 
 	}
 
-	//Converts byte buffer to string
+
 	public String byteToString(ByteBuffer byteBuffer)
 	{
+		//Converts byte buffer to string
 		byteBuffer.position(0);
 		byteBuffer.limit(MESSAGE_SIZE);
 		byte[] bufArr = new byte[byteBuffer.remaining()];
@@ -570,9 +677,10 @@ public class ProjCS extends Thread
 		return new String(bufArr);
 	}
 
-	//Reads the config file and saves the hosts ports and paths in global array lists
+	
 	public void readconfig(String filename)
 	{
+		//Reads the config file and saves the hosts ports and paths in global array lists
 		try
 		{
 			FileReader fileReader = new FileReader(filename);
@@ -604,6 +712,7 @@ public class ProjCS extends Thread
 		}
 		
 	}
+
 
 	public static void main(String args[])
 	{
@@ -641,6 +750,6 @@ public class ProjCS extends Thread
 			};
 			thread1.start();
 		}
-	
 	}
+
 }
